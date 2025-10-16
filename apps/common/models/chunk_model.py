@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
+from apps.common.models.document_model import Document
 
-from apps.documents.models.document_model import Document
 
 class Chunk(models.Model):
     """
