@@ -15,6 +15,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "apps.documents",
     "apps.questions",
+    "apps.common"
 ]
 
 MIDDLEWARE = [
