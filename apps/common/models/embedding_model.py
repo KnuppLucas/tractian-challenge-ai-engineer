@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
+from apps.common.models.chunk_model import Chunk
 
-from apps.documents.models.chunk_model import Chunk
 
 class Embedding(models.Model):
     """
