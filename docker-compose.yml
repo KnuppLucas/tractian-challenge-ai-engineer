@@ -33,5 +33,17 @@ services:
       - POSTGRES_HOST=db
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
 
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - web
+    command: ["npm", "run", "dev"]
+    volumes:
+      - .:/app
+
 volumes:
   postgres_data:
