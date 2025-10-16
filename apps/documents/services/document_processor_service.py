@@ -2,8 +2,8 @@ import os
 import tempfile
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from apps.documents.models.chunk_model import Chunk
-from apps.documents.models.document_model import Document
+from apps.common.models.chunk_model import Chunk
+from apps.common.models.document_model import Document
 
 class DocumentProcessorService:
     """

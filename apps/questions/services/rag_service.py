@@ -4,11 +4,11 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from huggingface_hub import login
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
+from apps.common.models.chunk_model import Chunk
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_huggingface import HuggingFacePipeline
 from langchain_community.vectorstores import FAISS
 from langchain.schema import Document
-from apps.documents.models.chunk_model import Chunk
 
 
 login(token=os.getenv("HUGGINGFACEHUB_API_TOKEN"))

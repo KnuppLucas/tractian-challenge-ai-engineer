@@ -1,8 +1,8 @@
 import numpy as np
 import faiss
+from apps.common.models.chunk_model import Chunk
+from apps.common.models.embedding_model import Embedding
 from langchain_huggingface import HuggingFaceEmbeddings
-from apps.documents.models.chunk_model import Chunk
-from apps.documents.models.embedding_model import Embedding
 
 
 class EmbeddingService:
