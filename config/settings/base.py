@@ -1,10 +1,14 @@
+import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-SECRET_KEY = "fake-key-for-dev"
-DEBUG = True
-ALLOWED_HOSTS = ["*"]
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "fallback-secret")
+DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() == "true"
+ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
 
 INSTALLED_APPS = [
     'django.contrib.auth',
@@ -15,7 +19,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "apps.documents",
     "apps.questions",
-    "apps.common"
+    "apps.common",
 ]
 
 MIDDLEWARE = [
@@ -31,13 +35,14 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "tractian_db",
-        "USER": "tractian_user",
-        "PASSWORD": "tractian_pass",
-        "HOST": "db",
-        "PORT": "5432",
+        "NAME": os.getenv("POSTGRES_DB", "tractian_db"),
+        "USER": os.getenv("POSTGRES_USER", "tractian_user"),
+        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "tractian_pass"),
+        "HOST": os.getenv("POSTGRES_HOST", "db"),
+        "PORT": os.getenv("POSTGRES_PORT", "5432"),
     }
 }
+
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_TZ = True

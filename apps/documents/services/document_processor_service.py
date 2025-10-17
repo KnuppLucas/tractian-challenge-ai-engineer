@@ -1,18 +1,10 @@
 import os
-import logging
 import tempfile
 from PyPDF2 import PdfReader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from apps.common.logger.logger import logger
 from apps.common.models.chunk_model import Chunk
 from apps.common.models.document_model import Document
-
-logger = logging.getLogger("rag_services")
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-ch.setFormatter(formatter)
-logger.addHandler(ch)
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 class DocumentProcessorService:
     """
@@ -47,21 +39,21 @@ class DocumentProcessorService:
 
             text = self.__extract_text(tmp_path)
             if not text.strip():
-                logger.warning(f"⚠️ PDF {f.name} não possui texto extraído, possível PDF digitalizado.")
+                logger.warning(f"PDF {f.name} não possui texto extraído, possível PDF digitalizado.", extra={"service": "DocumentProcessorService"})
             chunks = self.__chunk_text(text)
 
             document = Document.objects.create(filename=f.name)
             for idx, chunk_text in enumerate(chunks):
                 if chunk_text.strip():
                     Chunk.objects.create(document=document, text=chunk_text, order=idx)
-                    logger.debug(f"  • Chunk {idx} criado para Documento {f.name}")
+                    logger.debug(f"  • Chunk {idx} criado para Documento {f.name}", extra={"service": "DocumentProcessorService"})
 
             documents_indexed += 1
             total_chunks += len(chunks)
             os.remove(tmp_path)
-            logger.info(f"✅ Documento {f.name} processado: {len(chunks)} chunks criados.")
+            logger.info(f"Documento {f.name} processado: {len(chunks)} chunks criados.", extra={"service": "DocumentProcessorService"})
 
-        logger.info(f"📄 Total processado: {documents_indexed} documentos, {total_chunks} chunks.")
+        logger.info(f"Total processado: {documents_indexed} documentos, {total_chunks} chunks.", extra={"service": "DocumentProcessorService"})
         return {"documents_indexed": documents_indexed, "total_chunks": total_chunks}
 
     def __extract_text(self, pdf_path):
@@ -76,7 +68,7 @@ class DocumentProcessorService:
         for page_num, page in enumerate(reader.pages):
             page_text = page.extract_text() or ""
             text += page_text
-            logger.debug(f"  • Página {page_num} extraída ({len(page_text)} caracteres)")
+            logger.debug(f"  • Página {page_num} extraída ({len(page_text)} caracteres)", extra={"service": "DocumentProcessorService"})
         return text
 
     def __chunk_text(self, text):
@@ -87,5 +79,5 @@ class DocumentProcessorService:
         :return (list[str]): Lista de chunks textuais gerados.
         """
         chunks = self.splitter.split_text(text)
-        logger.debug(f"⚙️ Texto dividido em {len(chunks)} chunks.")
+        logger.debug(f"Texto dividido em {len(chunks)} chunks.", extra={"service": "DocumentProcessorService"})
         return chunks
