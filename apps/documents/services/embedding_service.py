@@ -1,0 +1,70 @@
+import numpy as np
+import logging
+import faiss
+from apps.common.models.chunk_model import Chunk
+from apps.common.models.embedding_model import Embedding
+from langchain_huggingface import HuggingFaceEmbeddings
+
+logger = logging.getLogger("rag_services")
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
+class EmbeddingService:
+    """
+    Classe responsável por gerar e armazenar embeddings de chunks de texto.
+    - Extrai os embeddings de cada chunk
+    - Persiste os vetores no banco de dados
+    - Cria e salva o índice FAISS para busca vetorial
+    """
+
+    def __init__(self, model_name="sentence-transformers/all-MiniLM-L6-v2", index_path="faiss_index.index"):
+        self.embeddings = HuggingFaceEmbeddings(model_name=model_name)
+        self.index_path = index_path
+        self.index = None
+
+    def generate_and_store(self):
+        """
+        Gera os embeddings dos chunks armazenados no banco e salva tanto no banco quanto no índice FAISS.
+
+        :return (None): Operação de geração e salvamento executada com sucesso.
+        """
+        chunks = Chunk.objects.all()
+        if not chunks:
+            logger.warning("⚠️ Nenhum chunk encontrado para gerar embeddings.")
+            return
+
+        vectors, ids = [], []
+        logger.info(f"⚙️ Gerando embeddings para {len(chunks)} chunks...")
+        for chunk in chunks:
+            vector = self.embeddings.embed_query(chunk.text)
+            vector_np = np.array(vector, dtype="float32")
+            vectors.append(vector_np)
+            ids.append(chunk.id.bytes)
+            Embedding.objects.create(chunk=chunk, vector=vector_np.tobytes())
+            logger.debug(f"  • Embedding criado para Chunk {chunk.id}")
+
+        self.__save_faiss_index(vectors, ids)
+
+    def __save_faiss_index(self, vectors, ids):
+        """
+        Salva os vetores gerados em um índice FAISS no disco.
+
+        :param vectors (list[np.ndarray]): Lista de vetores de embeddings a serem indexados.
+        :param ids (list[bytes]): Lista de identificadores binários correspondentes aos vetores.
+        :return (None): Cria e salva o índice FAISS no caminho especificado.
+        """
+        if not vectors:
+            logger.warning("⚠️ Nenhum vetor para indexar — verifique se há chunks.")
+            return
+
+        vectors = np.vstack(vectors)
+        dim = vectors.shape[1]
+        index = faiss.IndexFlatL2(dim)
+        index.add(vectors)
+        faiss.write_index(index, self.index_path)
+        self.index = index
+        logger.info(f"✅ Índice FAISS salvo em {self.index_path} com {len(vectors)} vetores.")

@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: tractian_user
+      POSTGRES_PASSWORD: tractian_pass
+      POSTGRES_DB: tractian_db
+    volumes:
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/django/Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      POSTGRES_USER: tractian_user
+      POSTGRES_PASSWORD: tractian_pass
+      POSTGRES_DB: tractian_db
+      POSTGRES_HOST: db
+      HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/streamlit/Dockerfile
+    container_name: tractian_frontend
+    command: streamlit run frontend/app.py --server.port=8501 --server.address=0.0.0.0
+    volumes:
+      - .:/app
+    ports:
+      - "8501:8501"
+    depends_on:
+      - web
+    environment:
+      BACKEND_URL: http://web:8000/api
+
+volumes:
+  postgres_data:

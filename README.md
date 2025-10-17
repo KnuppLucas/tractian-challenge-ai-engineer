@@ -70,7 +70,9 @@ docker-compose exec web python manage.py migrate
 ```curl
 curl --location 'http://127.0.0.1:8000/api/documents/' \
 --form 'files=@"/path/to/file1.pdf"' \
---form 'files=@"/path/to/file2.pdf"'
+--form 'files=@"/path/to/file2.pdf"' \
+--form 'files=@"/path/to/file3.pdf"' \
+--form 'files=@"/path/to/file4.pdf"'
 ```
 
 **Response:**
@@ -144,4 +146,5 @@ curl --location 'http://127.0.0.1:8000/api/question/' \
 
 - LangChain Docs: https://www.langchain.com/docs/  
 - Hugging Face Transformers: https://huggingface.co/docs/transformers/index  
+- Hugging Face Tokens: https://huggingface.co/settings/tokens  
 - FAISS: https://faiss.ai/
