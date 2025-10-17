@@ -1,25 +1,17 @@
 import os
+import uuid
+import time
 import torch
 import numpy as np
-from scipy.spatial.distance import cdist
-import uuid
-import logging
 from huggingface_hub import login
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
-from apps.common.models.chunk_model import Chunk
-from langchain_huggingface import HuggingFaceEmbeddings, HuggingFacePipeline
-from langchain_community.vectorstores import FAISS
 from langchain.schema import Document
-
-logger = logging.getLogger("rag_service")
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-ch.setFormatter(formatter)
-logger.addHandler(ch)
-
-login(token=os.getenv("HUGGINGFACEHUB_API_TOKEN"))
+from scipy.spatial.distance import cdist
+from apps.common.logger.logger import logger
+from apps.common.models.chunk_model import Chunk
+from apps.common.models.prompt_model import Prompt
+from langchain_community.vectorstores import FAISS
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
+from langchain_huggingface import HuggingFaceEmbeddings, HuggingFacePipeline
 
 
 class RAGService:
@@ -37,6 +29,7 @@ class RAGService:
         llm_model="google/long-t5-tglobal-base",
         fallback_model="google/flan-t5-base",
     ):
+        login(token=os.getenv("HUGGINGFACEHUB_API_TOKEN"))
         self.index_dir = index_dir
         self.embedding_model = HuggingFaceEmbeddings(model_name=embedding_model)
         self.vectorstore = self.__load_or_create_faiss_index()
@@ -52,7 +45,7 @@ class RAGService:
         :return (transformers.Pipeline): Pipeline configurado para geração de texto.
         """
         try:
-            logger.info(f"⚙️ Carregando modelo principal: {self.llm_model_name}")
+            logger.info(f"Carregando modelo principal: {self.llm_model_name}", extra={"service": "RAGService"})
             tokenizer = AutoTokenizer.from_pretrained(self.llm_model_name)
             model = AutoModelForSeq2SeqLM.from_pretrained(
                 self.llm_model_name,
@@ -61,8 +54,8 @@ class RAGService:
                 local_files_only=False,
             )
         except Exception as e:
-            logger.warning(f"Falha ao carregar {self.llm_model_name}: {e}")
-            logger.info(f"➡️ Usando fallback: {self.fallback_model_name}")
+            logger.warning(f"Falha ao carregar {self.llm_model_name}: {e}", extra={"service": "RAGService"})
+            logger.info(f"Usando fallback: {self.fallback_model_name}", extra={"service": "RAGService"})
             tokenizer = AutoTokenizer.from_pretrained(self.fallback_model_name)
             model = AutoModelForSeq2SeqLM.from_pretrained(self.fallback_model_name)
 
@@ -82,17 +75,17 @@ class RAGService:
         :return (FAISS): Objeto FAISS configurado e pronto para consultas.
         """
         if os.path.exists(self.index_dir):
-            logger.info(f"✅ Carregando índice existente de {self.index_dir}")
+            logger.info(f"Carregando índice existente de {self.index_dir}", extra={"service": "RAGService"})
             return FAISS.load_local(
                 folder_path=self.index_dir,
                 embeddings=self.embedding_model,
                 allow_dangerous_deserialization=True,
             )
 
-        logger.info("⚙️ Criando novo índice FAISS a partir dos chunks do banco...")
+        logger.info("Criando novo índice FAISS a partir dos chunks do banco...", extra={"service": "RAGService"})
         chunks = Chunk.objects.all()
         if not chunks:
-            logger.error("Nenhum chunk encontrado no banco para criar FAISS index.")
+            logger.error("Nenhum chunk encontrado no banco para criar FAISS index.", extra={"service": "RAGService"})
             raise ValueError("Nenhum chunk encontrado no banco para criar FAISS index.")
 
         docs = [
@@ -101,7 +94,7 @@ class RAGService:
         ]
         vectorstore = FAISS.from_documents(docs, embedding=self.embedding_model)
         vectorstore.save_local(self.index_dir)
-        logger.info("✅ Novo índice FAISS criado e salvo.")
+        logger.info("Novo índice FAISS criado e salvo.", extra={"service": "RAGService"})
         return vectorstore
 
     def __rerank_chunks(self, question: str, candidate_docs: list, top_k_final: int = 5):
@@ -114,7 +107,7 @@ class RAGService:
         :return (list[Document]): Lista dos melhores documentos reranqueados.
         """
         if not candidate_docs:
-            logger.warning("Nenhum documento candidato para reranking.")
+            logger.warning("Nenhum documento candidato para reranking.", extra={"service": "RAGService"})
             return []
 
         query_vec = np.array(
@@ -132,11 +125,11 @@ class RAGService:
         top_indices = np.argsort(sims)[-top_k_final:][::-1]
         reranked = [(candidate_docs[i], sims[i]) for i in top_indices]
 
-        logger.info("🔍 Reranking de chunks (maiores similaridades primeiro):")
+        logger.info("Reranking de chunks (maiores similaridades primeiro):", extra={"service": "RAGService"})
         for doc, score in reranked:
             cid = doc.metadata.get("chunk_id")
             preview = doc.page_content[:80].replace("\n", " ")
-            logger.debug(f"  • Chunk {cid} | Score: {score:.4f} | {preview}...")
+            logger.debug(f"  • Chunk {cid} | Score: {score:.4f} | {preview}...", extra={"service": "RAGService"})
 
         return [doc for doc, _ in reranked]
 
@@ -148,75 +141,153 @@ class RAGService:
         log_chunks: bool = True,
     ) -> dict:
         """
-        Realiza o fluxo completo RAG: recuperação, reranking e geração de resposta textual.
-
-        :param question (str): Pergunta do usuário.
-        :param top_k_retrieve (int): Número de documentos recuperados inicialmente pelo retriever.
-        :param top_k_final (int): Quantidade final de chunks após o reranking semântico.
-        :param log_chunks (bool): Se True, imprime logs com os chunks utilizados na resposta.
-        :return (dict): Dicionário com a resposta gerada e até 3 referências de contexto.
-            - "answer" (str): Texto final gerado pelo modelo.
-            - "references" (list[str]): Trechos dos chunks usados na geração.
+        Executa o fluxo completo RAG (retrieval + reranking + geração)
+        e registra o prompt no banco com logs estruturados.
         """
-        logger.info(f"❓ Question received: {question}")
+        start_time = time.time()
+        prompt_entry = None
 
-        retriever = self.vectorstore.as_retriever(search_kwargs={"k": top_k_retrieve})
-        candidate_docs = retriever.invoke(question)
-        logger.debug(f"Candidate docs: {[doc.metadata.get('chunk_id') for doc in candidate_docs]}")
-
-        reranked_docs = self.__rerank_chunks(question, candidate_docs, top_k_final)
-
-        valid_docs = []
-        for doc in reranked_docs:
-            chunk_id_str = doc.metadata.get("chunk_id")
-            if not chunk_id_str:
-                continue
-            try:
-                chunk_uuid = uuid.UUID(chunk_id_str)
-                if Chunk.objects.filter(id=chunk_uuid).exists():
-                    valid_docs.append(doc)
-            except (ValueError, TypeError):
-                continue
-
-        if not valid_docs:
-            logger.warning("No valid chunks found. Returning fallback response.")
-            return {"answer": "Insufficient information.", "references": []}
-
-        if log_chunks:
-            logger.info("📄 Chunks used in the final prompt:")
-            for doc in valid_docs:
-                logger.debug(f"- ID: {doc.metadata.get('chunk_id')}, Preview: {doc.page_content[:100]}...")
-
-        context_text = "\n\n".join([doc.page_content for doc in valid_docs])
-
-        prompt = f"""
-        Answer the following question using only the information provided in the context.
-        - Be concise and direct.
-        - Answer in English.
-        - Do not repeat the question.
-        - If the context does not contain an answer, say "Insufficient information."
-
-        Context:
-        {context_text}
-
-        Question:
-        {question}
-
-        Answer:
-        """
+        logger.info(
+            "Nova requisição RAG recebida",
+            extra={
+                "service": "RAGService",
+                "event": "request_start",
+                "question": question,
+            },
+        )
 
         try:
-            result = self.llm.invoke(prompt)
-            if isinstance(result, list) and len(result) > 0 and "generated_text" in result[0]:
-                answer = result[0]["generated_text"].strip()
-            elif isinstance(result, str):
-                answer = result.strip()
-            else:
-                answer = str(result)
+            retriever = self.vectorstore.as_retriever(search_kwargs={"k": top_k_retrieve})
+            candidate_docs = retriever.invoke(question)
+
+            logger.debug(
+                "Documentos candidatos recuperados",
+                extra={
+                    "service": "RAGService",
+                    "candidate_ids": [doc.metadata.get("chunk_id") for doc in candidate_docs],
+                },
+            )
+
+            reranked_docs = self.__rerank_chunks(question, candidate_docs, top_k_final)
+
+            valid_docs = []
+            for doc in reranked_docs:
+                chunk_id_str = doc.metadata.get("chunk_id")
+                if not chunk_id_str:
+                    continue
+                try:
+                    chunk_uuid = uuid.UUID(chunk_id_str)
+                    if Chunk.objects.filter(id=chunk_uuid).exists():
+                        valid_docs.append(doc)
+                except (ValueError, TypeError):
+                    continue
+
+            if not valid_docs:
+                logger.warning(
+                    "Nenhum chunk válido encontrado, retornando fallback.",
+                    extra={"service": "RAGService", "event": "no_valid_chunks"},
+                )
+                end_time = time.time()
+                Prompt.objects.create(
+                    question=question,
+                    context="",
+                    generated_prompt="",
+                    answer="Insufficient information.",
+                    references_list=[],
+                    model_name=self.llm_model_name,
+                    embedding_model=self.embedding_model.model_name,
+                    latency_ms=(end_time - start_time) * 1000,
+                    success=False,
+                    error_message="No valid chunks found",
+                )
+                return {"answer": "Insufficient information.", "references": []}
+
+            if log_chunks:
+                for doc in valid_docs:
+                    logger.debug(
+                        "Chunk usado na geração",
+                        extra={
+                            "service": "RAGService"
+                        },
+                    )
+
+            context_text = "\n\n".join([doc.page_content for doc in valid_docs])
+            prompt = f"""
+            Answer the following question using only the information provided in the context.
+            - Be concise and direct.
+            - Answer in English.
+            - Do not repeat the question.
+            - If the context does not contain an answer, say "Insufficient information."
+
+            Context:
+            {context_text}
+
+            Question:
+            {question}
+
+            Answer:
+            """
+
+            try:
+                result = self.llm.invoke(prompt)
+                if isinstance(result, list) and len(result) > 0 and "generated_text" in result[0]:
+                    answer = result[0]["generated_text"].strip()
+                elif isinstance(result, str):
+                    answer = result.strip()
+                else:
+                    answer = str(result)
+            except Exception as e:
+                logger.error(
+                    "Erro ao gerar resposta com o modelo LLM",
+                    extra={"service": "RAGService", "error": str(e)},
+                )
+                answer = "Insufficient information."
+                raise e
+
+            refs = [doc.page_content.strip().replace("\n", " ")[:500] for doc in valid_docs]
+            end_time = time.time()
+
+            prompt_entry = Prompt.objects.create(
+                question=question,
+                context=context_text,
+                generated_prompt=prompt,
+                answer=answer,
+                references_list=refs[:3],
+                model_name=self.llm_model_name,
+                embedding_model=self.embedding_model.model_name,
+                latency_ms=(end_time - start_time) * 1000,
+                success=True,
+            )
+
+            logger.info(
+                "Resposta gerada com sucesso",
+                extra={
+                    "service": "RAGService",
+                    "event": "response_generated",
+                    "prompt_id": str(prompt_entry.id),
+                    "latency_ms": (end_time - start_time) * 1000,
+                },
+            )
+
+            return {"answer": answer, "references": refs[:3]}
+
         except Exception as e:
-            logger.error(f"❌ Error generating answer with LLM: {e}")
-            answer = "Insufficient information."
-
-        refs = [doc.page_content.strip().replace("\n", " ")[:500] for doc in valid_docs]
-
-        return {"answer": answer, "references": refs[:3]}
+            end_time = time.time()
+            logger.exception(
+                "Falha geral no fluxo RAG",
+                extra={"service": "RAGService", "error": str(e)},
+            )
+            if not prompt_entry:
+                Prompt.objects.create(
+                    question=question,
+                    context="",
+                    generated_prompt="",
+                    answer="Insufficient information.",
+                    references_list=[],
+                    model_name=self.llm_model_name,
+                    embedding_model=self.embedding_model.model_name,
+                    latency_ms=(end_time - start_time) * 1000,
+                    success=False,
+                    error_message=str(e),
+                )
+            return {"answer": "Insufficient information.", "references_list": []}

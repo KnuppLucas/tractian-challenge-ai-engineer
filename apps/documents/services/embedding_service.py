@@ -1,17 +1,9 @@
-import numpy as np
-import logging
 import faiss
+import numpy as np
+from apps.common.logger.logger import logger
 from apps.common.models.chunk_model import Chunk
 from apps.common.models.embedding_model import Embedding
 from langchain_huggingface import HuggingFaceEmbeddings
-
-logger = logging.getLogger("rag_services")
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-ch.setFormatter(formatter)
-logger.addHandler(ch)
 
 class EmbeddingService:
     """
@@ -34,18 +26,18 @@ class EmbeddingService:
         """
         chunks = Chunk.objects.all()
         if not chunks:
-            logger.warning("⚠️ Nenhum chunk encontrado para gerar embeddings.")
+            logger.warning("Nenhum chunk encontrado para gerar embeddings.", extra={"service": "EmbeddingService"})
             return
 
         vectors, ids = [], []
-        logger.info(f"⚙️ Gerando embeddings para {len(chunks)} chunks...")
+        logger.info(f"Gerando embeddings para {len(chunks)} chunks...", extra={"service": "EmbeddingService"})
         for chunk in chunks:
             vector = self.embeddings.embed_query(chunk.text)
             vector_np = np.array(vector, dtype="float32")
             vectors.append(vector_np)
             ids.append(chunk.id.bytes)
             Embedding.objects.create(chunk=chunk, vector=vector_np.tobytes())
-            logger.debug(f"  • Embedding criado para Chunk {chunk.id}")
+            logger.debug(f"  • Embedding criado para Chunk {chunk.id}", extra={"service": "EmbeddingService"})
 
         self.__save_faiss_index(vectors, ids)
 
@@ -58,7 +50,7 @@ class EmbeddingService:
         :return (None): Cria e salva o índice FAISS no caminho especificado.
         """
         if not vectors:
-            logger.warning("⚠️ Nenhum vetor para indexar — verifique se há chunks.")
+            logger.warning("Nenhum vetor para indexar — verifique se há chunks.", extra={"service": "EmbeddingService"})
             return
 
         vectors = np.vstack(vectors)
@@ -67,4 +59,4 @@ class EmbeddingService:
         index.add(vectors)
         faiss.write_index(index, self.index_path)
         self.index = index
-        logger.info(f"✅ Índice FAISS salvo em {self.index_path} com {len(vectors)} vetores.")
+        logger.info(f"Índice FAISS salvo em {self.index_path} com {len(vectors)} vetores.", extra={"service": "EmbeddingService"})
