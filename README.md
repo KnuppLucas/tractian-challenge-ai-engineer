@@ -7,28 +7,6 @@ Built with **Django**, **FAISS**, **LangChain**, and **Hugging Face Transformers
 
 ---
 
-## 🚀 Features
-
-- Upload PDF documents and extract text automatically  
-- Chunk text and generate embeddings for semantic search  
-- Persist embeddings with FAISS for fast retrieval  
-- Ask questions about uploaded PDFs with context-aware answers  
-- Dockerized for easy setup and deployment  
-
----
-
-## 🛠 Tech Stack
-
-- **Backend:** Django, Django REST Framework  
-- **Vector Store:** FAISS  
-- **Embeddings:** HuggingFaceEmbeddings (`sentence-transformers/all-MiniLM-L6-v2`)  
-- **LLM:** Hugging Face Transformers pipeline (`google/flan-t5-base`)  
-- **Python Libraries:** `python-dotenv`, `django`, `djangorestframework`, `langchain`, `langchain-huggingface`, `pyPDF2`, `sentence-transformers`, `faiss-cpu`, `accelerate`, `psycopg2`, `pdf2image`, `pytesseract`  
-- **Database:** PostgreSQL  
-- **Containerization:** Docker, Docker Compose  
-
----
-
 ## ⚙️ Setup & Installation
 
 1. **Clone the repository**  
@@ -39,12 +17,14 @@ cd tractian-challenge-ai-engineer
 
 2. **Create `.env` file** with the following variables:
 ```env
-HUGGINGFACEHUB_API_TOKEN=your_token
-LLM_MODEL=google/flan-t5-base
-POSTGRES_USER=tractian_user
-POSTGRES_PASSWORD=tractian_pass
-POSTGRES_DB=tractian_db
-POSTGRES_HOST=db
+HUGGINGFACEHUB_API_TOKEN=
+POSTGRES_DB=
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+POSTGRES_HOST=
+POSTGRES_PORT=
+DJANGO_SECRET_KEY='fake-key-for-dev'
+DJANGO_DEBUG='True'
 ```
 
 3. **Build and run Docker containers**  
@@ -56,6 +36,24 @@ docker-compose up --build
 ```bash
 docker-compose exec web python manage.py migrate
 ```
+
+5. **URL frontend**
+```bash
+http://localhost:8501
+```
+
+---
+
+## 🛠 Tech Stack
+
+- **Backend:** Django, Django REST Framework  
+- **Vector Store:** FAISS  
+- **Embeddings:** HuggingFaceEmbeddings (`sentence-transformers/all-MiniLM-L6-v2`)  
+- **LLM:** Hugging Face Transformers pipeline (`google/flan-t5-base`)  
+- **Python Libraries Backend:** `python-dotenv`, `django`, `djangorestframework`, `langchain`, `langchain-huggingface`, `pyPDF2`, `sentence-transformers`, `faiss-cpu`, `accelerate`, `psycopg2`, `pdf2image`, `pytesseract`  
+- **Python Libraries Frontend:** `requests`, `streamlit`, `psycopg2-binary`
+- **Database:** PostgreSQL  
+- **Containerization:** Docker, Docker Compose  
 
 ---
 
@@ -121,15 +119,13 @@ curl --location 'http://127.0.0.1:8000/api/question/' \
 
 ## 🏗 Architecture Overview
 
-1. PDF Upload → Text extraction  
-2. Chunking & Embedding → Store vectors in FAISS / Postgres  
-3. Retrieval → Get relevant chunks  
-4. LLM → Generate answer from retrieved context  
+[PDF Upload] → [Text Extraction] → [Chunking & Embeddings] → [FAISS/Postgres] → [Retriever] → [LLM Generation] → [Answer + References]
+
 
 **Services involved:**
 - DocumentProcessorService: Extracts text and splits into chunks  
 - EmbeddingService: Generates embeddings and persists in FAISS/Postgres  
-- RAGService: Retrieves relevant chunks and generates LLM answers  
+- RAGService: Retrieves relevant chunks, generates LLM answers and save Prompt for futures analyzes  
 
 ---
 
@@ -137,8 +133,6 @@ curl --location 'http://127.0.0.1:8000/api/question/' \
 
 - Hugging Face API token required for embeddings and LLM  
 - FAISS index is persisted for faster reloads (`faiss_index/`)  
-- Lightweight LLM recommended for local/dev environments  
-- Larger LLMs require GPU and proper acceleration  
 
 ---
 
