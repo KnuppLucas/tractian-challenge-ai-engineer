@@ -213,19 +213,27 @@ class RAGService:
 
             context_text = "\n\n".join([doc.page_content for doc in valid_docs])
             prompt = f"""
-            Answer the following question using only the information provided in the context.
-            - Be concise and direct.
-            - Answer in English.
-            - Do not repeat the question.
-            - If the context does not contain an answer, say "Insufficient information."
+            You are *RAGAssistant*, an expert system designed to answer questions **only** using the provided context.
 
-            Context:
+            GUARDAILS
+            - Use only the information in the **CONTEXT** section.
+            - Do **not** use prior knowledge, opinions, or external sources.
+            - If the answer is not explicitly present or directly inferable, reply with:
+            "Insufficient information."
+            - Never make assumptions, guesses, or fabrications.
+            - Do not repeat the question.
+            - Avoid unnecessary explanations or commentary.
+            - If multiple facts appear in the context, synthesize them clearly.
+
+            ## OUTPUT FORMAT
+            Respond in the following structure:
+            Answer: <your concise answer here>
+
+            CONTEXT
             {context_text}
 
-            Question:
+            QUESTION
             {question}
-
-            Answer:
             """
 
             try:
